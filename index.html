@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal QA Checklist Tool</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+        /* Style for checked list items */
+        .checked-item label {
+            text-decoration: line-through;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-200">
+
+    <div class="container mx-auto max-w-5xl p-4 sm:p-6 lg:p-8">
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-white">Personal QA Checklist Tool</h1>
+            <p class="mt-2 text-gray-400">Create and use custom checklists to ensure consistent, high-quality annotation work.</p>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- Left Column: Template Management -->
+            <div class="space-y-6">
+                <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">1. Create New Template</h2>
+                    <div class="space-y-4">
+                        <input type="text" id="newTemplateName" class="w-full bg-gray-700 border-gray-600 text-white rounded-md p-2" placeholder="Template Name (e.g., Image Segmentation)">
+                        
+                        <div id="newChecklistItems" class="space-y-2">
+                           <!-- Items for new template go here -->
+                        </div>
+                        
+                        <div class="flex gap-2">
+                             <input type="text" id="newItemText" class="flex-grow bg-gray-700 border-gray-600 text-white rounded-md p-2" placeholder="Add a checklist item">
+                             <button id="addItemBtn" class="bg-teal-600 hover:bg-teal-500 text-white font-bold p-2 rounded-md transition">+</button>
+                        </div>
+                        
+                        <button id="saveTemplateBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-md transition">Save Template</button>
+                    </div>
+                </section>
+                
+                <section class="bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <h2 class="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">2. My Templates</h2>
+                    <div id="templatesList" class="space-y-3">
+                        <!-- List of saved templates will be populated here -->
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Column: Active Checklist -->
+            <div class="lg:col-span-1">
+                <section class="bg-gray-800 p-6 rounded-xl shadow-lg h-full">
+                    <div class="flex justify-between items-center border-b border-gray-700 pb-2 mb-4">
+                         <h2 class="text-xl font-semibold">3. Active Checklist</h2>
+                         <button id="resetChecklistBtn" class="text-sm bg-gray-600 hover:bg-gray-500 text-white font-semibold py-1 px-3 rounded-md transition">Reset</button>
+                    </div>
+                    
+                    <h3 id="activeChecklistName" class="text-lg font-bold text-teal-400 mb-2">Select a template to begin</h3>
+
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-gray-700 rounded-full h-2.5 mb-4">
+                        <div id="progressBar" class="bg-green-500 h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <p id="progressText" class="text-center text-sm text-gray-400 mb-4">&nbsp;</p>
+
+                    <div id="activeChecklist" class="space-y-3">
+                       <!-- Active checklist items will be populated here -->
+                    </div>
+                     <button id="clearAllBtn" class="mt-8 bg-red-800 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-md transition">Clear All Templates</button>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- STATE MANAGEMENT ---
+            let state = {
+                templates: {},
+                newTemplate: { name: '', items: [] },
+                activeChecklist: { name: null, items: [] }
+            };
+
+            // --- DOM ELEMENTS ---
+            const newTemplateNameInput = document.getElementById('newTemplateName');
+            const newChecklistItemsDiv = document.getElementById('newChecklistItems');
+            const newItemTextInput = document.getElementById('newItemText');
+            const addItemBtn = document.getElementById('addItemBtn');
+            const saveTemplateBtn = document.getElementById('saveTemplateBtn');
+            const templatesListDiv = document.getElementById('templatesList');
+            const activeChecklistNameH3 = document.getElementById('activeChecklistName');
+            const activeChecklistDiv = document.getElementById('activeChecklist');
+            const resetChecklistBtn = document.getElementById('resetChecklistBtn');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const clearAllBtn = document.getElementById('clearAllBtn');
+
+            // --- LOCAL STORAGE ---
+            const saveState = () => localStorage.setItem('qaChecklistState', JSON.stringify(state.templates));
+            const loadState = () => {
+                const savedTemplates = localStorage.getItem('qaChecklistState');
+                if (savedTemplates) {
+                    state.templates = JSON.parse(savedTemplates);
+                }
+            };
+            
+            // --- RENDER FUNCTIONS ---
+            const renderNewTemplateItems = () => {
+                newChecklistItemsDiv.innerHTML = '';
+                state.newTemplate.items.forEach((item, index) => {
+                    const el = document.createElement('div');
+                    el.className = 'bg-gray-700/50 p-2 rounded-md flex justify-between items-center text-sm';
+                    el.innerHTML = `<span>${item.text}</span><button data-index="${index}" class="remove-item-btn text-red-500 hover:text-red-400 font-bold text-lg leading-none">&times;</button>`;
+                    newChecklistItemsDiv.appendChild(el);
+                });
+            };
+
+            const renderTemplatesList = () => {
+                templatesListDiv.innerHTML = '';
+                 if (Object.keys(state.templates).length === 0) {
+                    templatesListDiv.innerHTML = '<p class="text-gray-500 text-center italic">No templates saved yet.</p>';
+                    return;
+                }
+                Object.keys(state.templates).forEach(name => {
+                    const el = document.createElement('div');
+                    el.className = 'bg-gray-700 p-3 rounded-lg flex justify-between items-center';
+                    el.innerHTML = `
+                        <span class="font-semibold">${name}</span>
+                        <div class="flex gap-2">
+                           <button data-name="${name}" class="select-template-btn bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold py-1 px-3 rounded transition">Use</button>
+                           <button data-name="${name}" class="delete-template-btn bg-red-600 hover:bg-red-500 text-white text-xs font-bold py-1 px-3 rounded transition">Delete</button>
+                        </div>
+                    `;
+                    templatesListDiv.appendChild(el);
+                });
+            };
+
+            const renderActiveChecklist = () => {
+                activeChecklistDiv.innerHTML = '';
+                if (!state.activeChecklist.name) {
+                    activeChecklistNameH3.textContent = 'Select a template to begin';
+                    progressBar.style.width = '0%';
+                    progressText.textContent = '\u00A0'; // non-breaking space
+                    return;
+                }
+                
+                activeChecklistNameH3.textContent = state.activeChecklist.name;
+                
+                const checkedCount = state.activeChecklist.items.filter(i => i.checked).length;
+                const totalCount = state.activeChecklist.items.length;
+                const progressPercentage = totalCount > 0 ? (checkedCount / totalCount) * 100 : 0;
+
+                progressBar.style.width = `${progressPercentage}%`;
+                progressText.textContent = `${checkedCount} / ${totalCount} items completed`;
+
+                state.activeChecklist.items.forEach((item, index) => {
+                    const el = document.createElement('div');
+                    el.className = `flex items-center p-3 rounded-lg transition ${item.checked ? 'checked-item bg-gray-700/50' : 'bg-gray-700'}`;
+                    el.innerHTML = `
+                        <input id="item-${index}" data-index="${index}" type="checkbox" ${item.checked ? 'checked' : ''} class="active-checkbox h-5 w-5 rounded bg-gray-600 border-gray-500 text-teal-500 focus:ring-teal-600 cursor-pointer">
+                        <label for="item-${index}" class="ml-3 block text-md font-medium text-gray-300 cursor-pointer">${item.text}</label>
+                    `;
+                    activeChecklistDiv.appendChild(el);
+                });
+            };
+            
+            // --- LOGIC & EVENT HANDLERS ---
+            const handleAddItem = () => {
+                const text = newItemTextInput.value.trim();
+                if (text) {
+                    state.newTemplate.items.push({ text: text, checked: false });
+                    newItemTextInput.value = '';
+                    newItemTextInput.focus();
+                    renderNewTemplateItems();
+                }
+            };
+            
+            const handleRemoveItem = (index) => {
+                state.newTemplate.items.splice(index, 1);
+                renderNewTemplateItems();
+            };
+
+            const handleSaveTemplate = () => {
+                const name = newTemplateNameInput.value.trim();
+                if (!name || state.newTemplate.items.length === 0) {
+                    alert('Please provide a template name and at least one checklist item.');
+                    return;
+                }
+                if (state.templates[name]) {
+                    if (!confirm(`A template named "${name}" already exists. Overwrite it?`)) {
+                        return;
+                    }
+                }
+                state.templates[name] = [...state.newTemplate.items];
+                
+                // Reset creation form
+                state.newTemplate = { name: '', items: [] };
+                newTemplateNameInput.value = '';
+                renderNewTemplateItems();
+                
+                saveState();
+                renderTemplatesList();
+            };
+
+            const handleSelectTemplate = (name) => {
+                const templateItems = state.templates[name];
+                // Deep copy to avoid modifying the original template
+                state.activeChecklist.items = JSON.parse(JSON.stringify(templateItems));
+                state.activeChecklist.name = name;
+                renderActiveChecklist();
+            };
+            
+            const handleDeleteTemplate = (name) => {
+                if(confirm(`Are you sure you want to permanently delete the "${name}" template?`)){
+                    delete state.templates[name];
+                    if(state.activeChecklist.name === name) {
+                        state.activeChecklist = { name: null, items: [] };
+                    }
+                    saveState();
+                    renderTemplatesList();
+                    renderActiveChecklist();
+                }
+            };
+
+            const handleToggleCheckbox = (index) => {
+                state.activeChecklist.items[index].checked = !state.activeChecklist.items[index].checked;
+                renderActiveChecklist();
+            };
+
+            // --- ATTACH EVENT LISTENERS ---
+            addItemBtn.addEventListener('click', handleAddItem);
+            newItemTextInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleAddItem();
+            });
+
+            newChecklistItemsDiv.addEventListener('click', e => {
+                if (e.target.classList.contains('remove-item-btn')) {
+                    handleRemoveItem(parseInt(e.target.dataset.index, 10));
+                }
+            });
+
+            saveTemplateBtn.addEventListener('click', handleSaveTemplate);
+
+            templatesListDiv.addEventListener('click', e => {
+                const button = e.target.closest('button');
+                if (!button) return;
+
+                const name = button.dataset.name;
+                if (button.classList.contains('select-template-btn')) {
+                    handleSelectTemplate(name);
+                } else if (button.classList.contains('delete-template-btn')) {
+                    handleDeleteTemplate(name);
+                }
+            });
+            
+            activeChecklistDiv.addEventListener('click', e => {
+                 if (e.target.classList.contains('active-checkbox')) {
+                    handleToggleCheckbox(parseInt(e.target.dataset.index, 10));
+                }
+            });
+            
+            resetChecklistBtn.addEventListener('click', () => {
+                if (state.activeChecklist.name) {
+                    handleSelectTemplate(state.activeChecklist.name);
+                }
+            });
+
+            clearAllBtn.addEventListener('click', () => {
+                if(confirm("Are you sure you want to delete ALL of your saved templates? This cannot be undone.")){
+                    state.templates = {};
+                    state.activeChecklist = { name: null, items: [] };
+                    saveState();
+                    renderTemplatesList();
+                    renderActiveChecklist();
+                }
+            });
+
+            // --- INITIALIZATION ---
+            loadState();
+            renderTemplatesList();
+            renderActiveChecklist();
+        });
+    </script>
+</body>
+</html>
